@@ -15,7 +15,55 @@ for i in range(42):
 
 def alpha_beta_decision(board, turn, ai_level, queue, max_player):
     # random move (to modify)
-    queue.put(board.get_possible_moves()[rnd.randint(0, len(board.get_possible_moves()) - 1)])
+    value = -float("inf")
+    action=board.get_possible_moves()[0]
+    for move in board.get_possible_moves() : 
+        updated_board = board.copy()
+        updated_board.move(move)
+        _beta = float("inf")
+        _alpha = -float("inf")
+        v_computed = max(value, min_value_ab(ia_level=ai_level, board=updated_board, alpha=_alpha, beta=_beta))
+        if(value<v_computed) : 
+            value=v_computed
+            action=move
+    queue.put(action)
+
+def max_value_ab(board, turn_current, turn_original, ia_level, alpha, beta):
+    if board.check_victory():
+        return -1
+    if turn_current-turn_original==ia_level:
+        return eval(turn%2)
+    possible_moves = board.get_possible_moves()
+    value = -float("inf")
+    for move in possible_moves:
+        updated_board = board.copy()
+        updated_board.move(move) = turn_current
+        value = max(value, min_value_ab(updated_board, turn_ + 1, alpha, beta))
+        if value >= beta:
+            return value
+        alpha = max(alpha, value)
+    return value
+
+def min_value_ab(board, turn_current, turn_original, ia_level, alpha, beta):
+    if board.check_victory():
+        return 1
+    if turn_current-turn_original==ia_level:
+        return eval(turn%2)
+    possible_moves = board.get_possible_moves()
+    value = 2
+    for move in possible_moves:
+        updated_board = board.copy()
+        index = 5
+        while index>-1 : 
+            if()
+        updated_board.grid[]
+        value = min(value, max_value_ab(updated_board, turn + 1, alpha, beta))
+        if value <= alpha:
+            return value
+        beta = min(beta, value)
+    return value
+ 
+
 
 class Board:
     grid = np.array([[0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0],
@@ -23,6 +71,8 @@ class Board:
 
 
     def eval(self, player):
+        # additionner le nombre de points alignés avec le nombres de cases vides
+        # dans la direction  
         return 0
 
     def copy(self):
