@@ -14,60 +14,96 @@ for i in range(42):
     player_type.append('AI: alpha-beta level '+str(i+1))
 
 def alpha_beta_decision(board, turn, ai_level, queue, max_player):
-    # random move (to modify)
     value = -float("inf")
     action=board.get_possible_moves()[0]
     for move in board.get_possible_moves() : 
         updated_board = board.copy()
-        updated_board.move(move)
+        index = 5
+        while index>-1 : 
+            #on joue le coup
+            if updated_board.grid[move][index] == 0:
+                updated_board.grid[move][index] = turn % 2 + 1
+                break
+            index -= 1
         _beta = float("inf")
         _alpha = -float("inf")
-        v_computed = max(value, min_value_ab(ia_level=ai_level, board=updated_board, alpha=_alpha, beta=_beta))
+        v_computed = min_value_ab(
+            board=updated_board,
+            turn_current=turn+1,
+            turn_original=turn,
+            ia_level=ai_level,
+            alpha=_alpha,
+            beta=_beta,
+            max_player=max_player
+        )
         if(value<v_computed) : 
             value=v_computed
             action=move
     queue.put(action)
 
-def max_value_ab(board, turn_current, turn_original, ia_level, alpha, beta):
+def max_value_ab(board, turn_current, turn_original, ia_level, alpha, beta, max_player):
+    player_precedent = (turn_current - 1) % 2 + 1
+
     if board.check_victory():
-        return -1
+        if player_precedent == max_player:
+            return 100
+        else:
+            return -100
     if turn_current-turn_original==ia_level:
-        return eval(turn%2)
+        return board.eval(max_player)
     possible_moves = board.get_possible_moves()
     value = -float("inf")
+
+    #recherche des coups possibles
     for move in possible_moves:
         updated_board = board.copy()
-        updated_board.move(move) = turn_current
-        value = max(value, min_value_ab(updated_board, turn_ + 1, alpha, beta))
+        index = 5
+        while index>-1 : 
+            #on joue le coup
+            if updated_board.grid[move][index] == 0:
+                updated_board.grid[move][index] = turn_current % 2 + 1
+                break
+            index -= 1
+
+        # on fait l'opération d'élagage    
+        value = max(value, min_value_ab(board=updated_board, turn_current=turn_current + 1, ia_level=ia_level,turn_original=turn_original, alpha=alpha, beta=beta, max_player=max_player))
         if value >= beta:
             return value
         alpha = max(alpha, value)
     return value
 
-def min_value_ab(board, turn_current, turn_original, ia_level, alpha, beta):
+def min_value_ab(board, turn_current, turn_original, ia_level, alpha, beta, max_player):
+    player_precedent = (turn_current - 1) % 2 + 1
+
     if board.check_victory():
-        return 1
+        if player_precedent == max_player:
+            return 100
+        else:
+            return -100
     if turn_current-turn_original==ia_level:
-        return eval(turn%2)
+        return board.eval(max_player)
     possible_moves = board.get_possible_moves()
-    value = 2
+    value = float("inf")
     for move in possible_moves:
         updated_board = board.copy()
         index = 5
         while index>-1 : 
-            if()
-        updated_board.grid[]
-        value = min(value, max_value_ab(updated_board, turn + 1, alpha, beta))
+            #on joue le coup
+            if updated_board.grid[move][index] == 0:
+                updated_board.grid[move][index] = turn_current % 2 + 1
+                break
+            index -= 1
+        value = min(value, max_value_ab(board=updated_board, turn_current=turn_current + 1, ia_level=ia_level,turn_original=turn_original, alpha=alpha, beta=beta, max_player=max_player))
         if value <= alpha:
             return value
         beta = min(beta, value)
     return value
- 
+
 
 
 class Board:
     grid = np.array([[0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0],
-                     [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0]])
+                    [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0]])
 
 
     def eval(self, player):
