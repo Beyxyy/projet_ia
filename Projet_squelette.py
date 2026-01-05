@@ -27,7 +27,7 @@ def alpha_beta_decision(board, turn, ai_level, queue, max_player):
             index -= 1
         _beta = float("inf")
         _alpha = -float("inf")
-        v_computed = min_value_ab(
+        v_computed = max_value_ab(
             board=updated_board,
             turn_current=turn+1,
             turn_original=turn,
@@ -106,11 +106,59 @@ class Board:
                     [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0]])
 
 
+    # pour chacun des coups possibles calculer combien mènent à la victoire
+    # si aucun alors on regarde lequel a le plus de pions alignés sans counter
+    # dans la direction  
     def eval(self, player):
-        # additionner le nombre de points alignés avec le nombres de cases vides
-        # dans la direction  
-        return 0
+        autre_player = 2 if player == 1 else 1
+        score = [0 for i in range(4)]
+        final_score = []
+        for move in self.get_possible_moves() : 
+            updated_board = self.copy()
+            index = 5
+            while index>-1 : 
+                #on joue le coup
+                if updated_board.grid[move][index] == 0:
+                    updated_board.grid[move][index] = player
+                    break
+                index -= 1
+            if(updated_board.check_victory()) : 
+                return 100
+            # compte les diagonales, gauche droite et en bas
+            #on calcule sur la ligne
+            longueur_ligne = 7
+            longueur_colonne = 6
+            for i in range(longueur_ligne) : 
+                        score[0] = score[0] + 1 if updated_board.grid[move][i-1] == player or updated_board.grid[move][i-1] == 0 else 0
+            # je check les diagonales en partant du move choisi et de l'index(hauteur dans la colonne) auquel la pièce a été joué
+            for decalage_diagonal in range(-3,4) :
+                compteur = 0
+                for k in range(4) : 
+                    x = move + decalage_diagonal + k
+                    y = index + decalage_diagonal + k
+                    if(x>=0 and x<longueur_ligne and y>=0 and y<longueur_colonne) : 
+                            compteur = compteur +1 if updated_board.grid[x][y] == player or updated_board.grid[x][y] == 0 else 0
+                score[1] = max(score[1], compteur)
+            for decalage_diagonal in range(-3,4) :
+                compteur = 0
+                for k in range(4) : 
+                    x = move + decalage_diagonal + k
+                    y = index - decalage_diagonal - k
+                    if(x>=0 and x<longueur_ligne and y>=0 and y<longueur_colonne) : 
+                            compteur = compteur +1 if updated_board.grid[x][y] == player or updated_board.grid[x][y] == 0 else 0
+                score[2] = max(score[2], compteur)
+                
 
+            
+            # je check les colonnes
+            for j in range(longueur_colonne) : 
+                for i in range(longueur_ligne -3) : 
+                    if(updated_board.grid[i][j] == player and updated_board.grid[i+1][j] == player and updated_board.grid[i+2][j] == player and updated_board.grid[i+3][j] == player) : 
+                        score[3] = score[3] +1
+            final_score.append(max(score))
+        return max(final_score)*25 if final_score else 0
+
+        
     def copy(self):
         new_board = Board()
         new_board.grid = np.array(self.grid, copy=True)
@@ -281,3 +329,4 @@ button.grid(row=4, column=1)
 canvas1.bind('<Button-1>', game.click)
 
 window.mainloop()
+    
