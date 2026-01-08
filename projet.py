@@ -4,7 +4,7 @@ import numpy as np
 import random as rnd
 from threading import Thread
 from queue import Queue
-
+import math
 
 disk_color = ['white', 'red', 'orange']
 disks = list()
@@ -13,190 +13,153 @@ player_type = ['human']
 for i in range(42):
     player_type.append('AI: alpha-beta level '+str(i+1))
 
+# --- CONSTANTES POUR L'EVALUATION ---
+WINDOW_LENGTH = 4
+EMPTY = 0
+
 def alpha_beta_decision(board, turn, ai_level, queue, max_player):
-    value = -float("inf")
-    action=board.get_possible_moves()[0]
-    for move in board.get_possible_moves() : 
-        updated_board = board.copy()
-        index = 5
-        while index>-1 : 
-            #on joue le coup
-            if updated_board.grid[move][index] == 0:
-                updated_board.grid[move][index] = turn % 2 + 1
-                break
-            index -= 1
-        _beta = float("inf")
-        _alpha = -float("inf")
-        v_computed = min_value_ab(
-            board=updated_board,
-            turn_current=turn+1,
-            turn_original=turn,
-            ia_level=ai_level,
-            alpha=_alpha,
-            beta=_beta,
-            max_player=max_player
-        )
-        if(value<v_computed) : 
-            value=v_computed
-            action=move
-    queue.put(action)
+    """
+    Lance l'algorithme Alpha-Beta.
+    ai_level correspond à la profondeur (depth).
+    max_player est le numéro du joueur (1 ou 2) qui est l'IA.
+    """
+    
+    # On détermine l'adversaire
+    min_player = 1 if max_player == 2 else 2
 
-def max_value_ab(board, turn_current, turn_original, ia_level, alpha, beta, max_player):
-    player_precedent = (turn_current - 1) % 2 + 1
+    def minimax(current_board, depth, alpha, beta, maximizingPlayer):
+        valid_locations = current_board.get_possible_moves()
+        is_terminal = current_board.check_victory()
+        
+        # Cas de base : Victoire ou profondeur atteinte
+        if is_terminal:
+            if maximizingPlayer:
+                # Si c'est à nous de jouer mais que c'est une victoire,
+                # c'est que l'adversaire vient de jouer et gagner.
+                return -100000000000, None
+            else:
+                return 100000000000, None
+        elif depth == 0 or len(valid_locations) == 0:
+            return current_board.eval(max_player), None
 
-    if board.check_victory():
-            return -1000
+        if maximizingPlayer:
+            value = -math.inf
+            best_col = valid_locations[0] # Fallback
+            # On trie les coups pour optimiser l'élagage (colonne centrale d'abord)
+            valid_locations.sort(key=lambda x: abs(x-3)) 
+            
+            for col in valid_locations:
+                b_copy = current_board.copy()
+                b_copy.add_disk(col, max_player, update_display=False)
+                new_score, _ = minimax(b_copy, depth - 1, alpha, beta, False)
+                
+                if new_score > value:
+                    value = new_score
+                    best_col = col
+                
+                alpha = max(alpha, value)
+                if alpha >= beta:
+                    break # Élagage Beta
+            return value, best_col
 
-    if turn_current-turn_original==ia_level:
-        return board.eval(max_player)
-    possible_moves = board.get_possible_moves()
-    value = -float("inf")
+        else: # Minimizing Player (L'adversaire)
+            value = math.inf
+            best_col = valid_locations[0]
+            valid_locations.sort(key=lambda x: abs(x-3))
 
-    #recherche des coups possibles
-    for move in possible_moves:
-        updated_board = board.copy()
-        index = 5
-        while index>-1 : 
-            #on joue le coup
-            if updated_board.grid[move][index] == 0:
-                updated_board.grid[move][index] = turn_current % 2 + 1
-                break
-            index -= 1
+            for col in valid_locations:
+                b_copy = current_board.copy()
+                b_copy.add_disk(col, min_player, update_display=False)
+                new_score, _ = minimax(b_copy, depth - 1, alpha, beta, True)
+                
+                if new_score < value:
+                    value = new_score
+                    best_col = col
+                
+                beta = min(beta, value)
+                if alpha >= beta:
+                    break # Élagage Alpha
+            return value, best_col
 
-        # on fait l'opération d'élagage    
-        value = max(value, min_value_ab(board=updated_board, turn_current=turn_current + 1, ia_level=ia_level,turn_original=turn_original, alpha=alpha, beta=beta, max_player=max_player))
-        if value >= beta:
-            return value
-        alpha = max(alpha, value)
-    return value
+    # Lancement initial
+    # Note : ai_level sert de profondeur. Attention, une profondeur > 6 peut être lente en Python pur.
+    score, best_col = minimax(board, ai_level, -math.inf, math.inf, True)
+    
+    # Si pour une raison quelconque best_col est None (ex: match nul inévitable), on prend un coup valide au hasard
+    if best_col is None:
+        possible = board.get_possible_moves()
+        if possible:
+            best_col = rnd.choice(possible)
 
-def min_value_ab(board, turn_current, turn_original, ia_level, alpha, beta, max_player):
-    player_precedent = (turn_current - 1) % 2 + 1
-
-    if board.check_victory():
-            return 1000
-    if turn_current-turn_original==ia_level:
-        return board.eval(max_player)
-    possible_moves = board.get_possible_moves()
-    value = float("inf")
-    for move in possible_moves:
-        updated_board = board.copy()
-        index = 5
-        while index>-1 : 
-            #on joue le coup
-            if updated_board.grid[move][index] == 0:
-                updated_board.grid[move][index] = turn_current % 2 + 1
-                break
-            index -= 1
-        value = min(value, max_value_ab(board=updated_board, turn_current=turn_current + 1, ia_level=ia_level,turn_original=turn_original, alpha=alpha, beta=beta, max_player=max_player))
-        if value <= alpha:
-            return value
-        beta = min(beta, value)
-    return value
-
-
+    queue.put(best_col)
 
 class Board:
+    # Attention: Le squelette définit la grille comme 7 colonnes de 6 lignes.
+    # grid[x][y] où x est la colonne (0-6) et y la ligne (0-5)
     grid = np.array([[0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0],
-                    [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0]])
+                     [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0]])
 
-
-    # pour chacun des coups possibles calculer combien mènent à la victoire
-    # si aucun alors on regarde lequel a le plus de pions alignés sans counter
-    # dans la direction  
-        # print(self.eval_rows(player)  + self.eval_column(player)  + self.eval_diag(player))
-    def eval(self, player):
-        # adversaire = 1 if player == 2 else 2
-        # # On calcule le score de l'IA MOINS le score de l'adversaire
-        # score = (self.eval_rows(player) + self.eval_column(player) + self.eval_diag(player)) - (self.eval_rows(adversaire) + self.eval_column(adversaire) + self.eval_diag(adversaire))
-        # return score
+    def evaluate_window(self, window, player):
         score = 0
+        opp_player = 1 if player == 2 else 2
+
+        if window.count(player) == 4:
+            score += 100
+        elif window.count(player) == 3 and window.count(EMPTY) == 1:
+            score += 5
+        elif window.count(player) == 2 and window.count(EMPTY) == 2:
+            score += 2
+
+        # Stratégie défensive : bloquer l'adversaire est prioritaire
+        if window.count(opp_player) == 3 and window.count(EMPTY) == 1:
+            score -= 4 
+
+        return score
+
+    def eval(self, player):
+        """
+        Fonction d'évaluation heuristique pour une grille non terminale.
+        [cite: 6, 36, 37]
+        """
+        score = 0
+        
+        # 1. Prioriser le centre (colonne 3)
+        # On récupère la colonne centrale (index 3)
+        center_array = list(self.grid[3][:])
+        center_count = center_array.count(player)
+        score += center_count * 3
+
+        # 2. Évaluation des alignements (Horizontal, Vertical, Diagonal)
+        
+        # Horizontal (dans le grid du squelette, les colonnes sont le premier index)
+        # Il faut itérer sur les lignes (y) puis les colonnes (x)
         for r in range(6):
             row_array = [self.grid[c][r] for c in range(7)] # Construction de la ligne
             for c in range(7 - 3):
-                conseq_cells = row_array[c:c+4]
-                score += self.score_4_cellules_consecutives(conseq_cells, player)
+                window = row_array[c:c+WINDOW_LENGTH]
+                score += self.evaluate_window(window, player)
 
         # Vertical (plus simple car grid[c] est déjà une colonne)
         for c in range(7):
             col_array = list(self.grid[c])
             for r in range(6 - 3):
-                conseq_cells = col_array[r:r+4]
-                score += self.score_4_cellules_consecutives(conseq_cells, player)
+                window = col_array[r:r+WINDOW_LENGTH]
+                score += self.evaluate_window(window, player)
 
         # Diagonale positive (/)
         for r in range(6 - 3):
             for c in range(7 - 3):
-                conseq_cells = [self.grid[c+i][r+i] for i in range(4)]
-                score += self.score_4_cellules_consecutives(conseq_cells, player)
+                window = [self.grid[c+i][r+i] for i in range(WINDOW_LENGTH)]
+                score += self.evaluate_window(window, player)
 
         # Diagonale négative (\)
         for r in range(6 - 3):
             for c in range(7 - 3):
-                conseq_cells = [self.grid[c+i][r+3-i] for i in range(4)]
-                score += self.score_4_cellules_consecutives(conseq_cells, player)
-
-        return score
-                
-
-    def score_4_cellules_consecutives(self, cellules_consecutives, player):
-        """
-        Attribue des points selon le contenu d'une fenêtre de 4 cases.
-        """
-        score = 0
-        adversaire = 1 if player == 2 else 2
-
-        if cellules_consecutives.count(player) == 4:
-            score += 100
-        elif cellules_consecutives.count(player) == 3 and cellules_consecutives.count(0) == 1:
-            score += 5
-        elif cellules_consecutives.count(player) == 2 and cellules_consecutives.count(0) == 2:
-            score += 2
-
-        # Bloquer l'adversaire est prioritaire (grosse pénalité si l'adversaire a 3 pions)
-        if cellules_consecutives.count(adversaire) == 3 and cellules_consecutives.count(0) == 1:
-            score -= 4 
+                window = [self.grid[c+i][r+3-i] for i in range(WINDOW_LENGTH)]
+                score += self.evaluate_window(window, player)
 
         return score
 
-    def eval_rows(self, player):
-        score = 0
-        # je prends 4 cellules consécutives sur une ligne et les évalue et puis je recommence
-        for r in range(6):
-            for c in range(7 - 3):
-                cellules_consecutives = [self.grid[c+i][r] for i in range(4)]
-                score = score+(self.score_4_cellules_consecutives(cellules_consecutives, player))
-        return score
-
-    def eval_column(self, player) -> int :
-        score=0
-        for c in range(7) : 
-            for r in range(6-3) : 
-                cellules_consecutives = [self.grid[c][r+i] for i in range(4)]
-                score = score+(self.score_4_cellules_consecutives(cellules_consecutives, player))
-        return score
-
-    def eval_diag(self, player):
-        score = 0
-
-        # diagonales (bas-gauche / haut-droite)
-        for c in range(7 - 3):
-            for r in range(6 - 3):
-                cellules_consecutives = [self.grid[c + i][r + i] for i in range(4)]
-                score = score +(self.score_4_cellules_consecutives(cellules_consecutives, player))
-
-        # diagonales  (haut-gauche / bas-droite)
-        for c in range(7 - 3):
-            for r in range(3, 6):
-                cellules_consecutives = [
-                    self.grid[c + i][r - i] for i in range(4)
-                ]
-                score = score+(self.score_4_cellules_consecutives(cellules_consecutives, player))
-
-        return score
-
-    
-        
     def copy(self):
         new_board = Board()
         new_board.grid = np.array(self.grid, copy=True)
@@ -210,6 +173,8 @@ class Board:
 
     def get_possible_moves(self):
         possible_moves = list()
+        # On vérifie le centre d'abord pour optimiser l'IA (heuristique de tri des coups)
+        # Mais get_possible_moves doit juste renvoyer la validité
         if self.grid[3][5] == 0:
             possible_moves.append(3)
         for shift_from_center in range(1, 4):
@@ -220,6 +185,7 @@ class Board:
         return possible_moves
 
     def add_disk(self, column, player, update_display=True):
+        j = 0 # Initialisation par sécurité
         for j in range(6):
             if self.grid[column][j] == 0:
                 break
@@ -284,7 +250,8 @@ class Connect4:
     def click(self, event):
         if self.human_turn:
             column = event.x // row_width
-            self.move(column)
+            if 0 <= column < 7: # Sécurité clic hors zone
+                self.move(column)
 
     def ai_turn(self, ai_level):
         Thread(target=alpha_beta_decision, args=(self.board, self.turn, ai_level, self.ai_move, self.current_player(),)).start()
@@ -297,20 +264,25 @@ class Connect4:
             window.after(100, self.ai_wait_for_move)
 
     def handle_turn(self):
-        self.human_turn = False
         if self.board.check_victory():
             information['fg'] = 'red'
             information['text'] = "Player " + str(self.current_player()) + " wins !"
+            self.human_turn = False # Bloquer le jeu
             return
-        elif self.turn >= 42:
+        elif self.turn >= 42: # Correction : >= 42 car 42 pions max
             information['fg'] = 'red'
             information['text'] = "This a draw !"
             return
+        
         self.turn = self.turn + 1
+        self.human_turn = False # Bloquer temporairement
         information['text'] = "Turn " + str(self.turn) + " - Player " + str(
             self.current_player()) + " is playing"
+        
+        # Si le joueur actuel est une IA (index > 0 dans le combobox)
         if self.players[self.current_player() - 1] != 0:
             self.human_turn = False
+            # L'index 0 est Humain, donc niveau 1 = index 1
             self.ai_turn(self.players[self.current_player() - 1])
         else:
             self.human_turn = True
@@ -355,7 +327,7 @@ combobox_player2.grid(row=3, column=1)
 combobox_player1['values'] = player_type
 combobox_player1.current(0)
 combobox_player2['values'] = player_type
-combobox_player2.current(6)
+combobox_player2.current(4) # Défaut IA niveau 4
 
 button2 = tk.Button(window, text='New game', command=game.launch)
 button2.grid(row=4, column=0)
@@ -367,4 +339,3 @@ button.grid(row=4, column=1)
 canvas1.bind('<Button-1>', game.click)
 
 window.mainloop()
-    
