@@ -113,28 +113,26 @@ class Board:
         # hori
         for r in range(6):
             # Construction de la ligne complète
-            row = [self.grid[c][r] for c in range(7)]
             for c in range(7 - 3):
-                conseq_cells = row[c:c+4]
+                conseq_cells = [self.verif_if_case_jouable(c+i, r) for i in range(4)]
                 score += self.score_4_cellules_consecutives(conseq_cells, player)
 
         # verticale
         for c in range(7):
             col = list(self.grid[c])
             for r in range(6 - 3):
-                conseq_cells = col[r:r+4]
+                conseq_cells = [self.verif_if_case_jouable(c, r+i) for i in range(4)]
                 score += self.score_4_cellules_consecutives(conseq_cells, player)
-
         # diag pos 
         for r in range(6 - 3):
             for c in range(7 - 3):
-                conseq_cells = [self.grid[c+i][r+i] for i in range(4)]
+                conseq_cells = [self.verif_if_case_jouable(c+i,r+i) for i in range(4)]
                 score += self.score_4_cellules_consecutives(conseq_cells, player)
 
         # diag négatif 
         for r in range(6 - 3):
             for c in range(7 - 3):
-                conseq_cells = [self.grid[c+i][r+3-i] for i in range(4)]
+                conseq_cells = [self.verif_if_case_jouable(c+i,r-i) for i in range(4)]
                 score += self.score_4_cellules_consecutives(conseq_cells, player)
 
         return score
@@ -143,6 +141,7 @@ class Board:
     def score_4_cellules_consecutives(self, conseq_cells, player):
         """
         Attribue un score à une fenêtre de 4 cases.
+        Elle ne prend pas en compte si l'une des cases n'est pas encore jouable
         """
         score = 0
         adveraire = 1 if player == 2 else 2
@@ -151,17 +150,29 @@ class Board:
         if conseq_cells.count(player) == 4:
             score += 100
         # je suis sur le poit de gagner donc je récompense ++
-        elif conseq_cells.count(player) == 3 and conseq_cells.count(0) == 1:
-            score += 5
+        elif conseq_cells.count(player) == 3 and conseq_cells.count(True) == 1:
+            score += 50
             # je suis dans une situation correcte recompense +
-        elif conseq_cells.count(player) == 2 and conseq_cells.count(0) == 2:
-            score += 2
+        elif conseq_cells.count(player) == 2 and conseq_cells.count(True) == 2:
+            score += 20
 
         # on bloque absolument l'adversaire recompense ---
-        if conseq_cells.count(adveraire) == 3 and conseq_cells.count(0) == 1:
-            score -= 10
+        if conseq_cells.count(adveraire) == 3 and conseq_cells.count(True) == 1:
+            score -= 100
 
         return score
+
+    #amélioration de notre heusitique avec ajout de la gravité
+    def verif_if_case_jouable(self, col, row):
+        cell = self.grid[col][row]
+        # case appartient à un joueur
+        if cell != 0:
+            return cell
+        # la case est vide mais est "soutenue" par une case appartenant à un joueur
+        if row == 0 or self.grid[col][row] != 0:
+            return True
+        # cette case n'est pas jouable
+        return False
 
     def copy(self):
         new_board = Board()
