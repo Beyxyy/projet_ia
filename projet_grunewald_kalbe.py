@@ -169,7 +169,7 @@ class Board:
         if cell != 0:
             return cell
         # la case est vide mais est "soutenue" par une case appartenant à un joueur
-        if row == 0 or self.grid[col][row] != 0:
+        if row == 0 or self.grid[col][row-1] != 0:
             return True
         # cette case n'est pas jouable
         return False
